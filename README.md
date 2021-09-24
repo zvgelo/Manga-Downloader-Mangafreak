@@ -30,6 +30,8 @@ Select the chapter or press zero for a range of chapters.
 Script will download the zips to extract and convert them run the following script.
 `python images_to_pdf.py`
 
+![screenshot](https://github.com/Akshat69/Manga-Downloader-Mangafreak-/blob/main/Capture_6.PNG)
+
 Enter the Subname of ZipFiles.
 (for eg : `Mairimashita_Iruma_Kun` from `Mairimashita_Iruma_Kun_100.zip`
 ![screenshot](https://github.com/Akshat69/Manga-Downloader-Mangafreak-/blob/main/Capture_7.PNG)
