@@ -2,11 +2,9 @@
 This is a python based crawler that allows you to search and download manga of any anime (any chapter). This crawls http://www8.mangafreak.net
 ## Install Dependencies
 `pip3 install selenium fpdf`
+`pip3 install pillow`
 
-Download chomedriver : https://chromedriver.storage.googleapis.com/index.html?path=2.40/
-unzip and copy the location of chromedriver in it and assign it to `chromedriver` in `variable.py`
-
-Execute the script by using `python3 go.py`
+Execute the script by using `python go.py`
 
 ## Here is an example of the workflow :
 Execute the script:
