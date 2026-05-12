@@ -177,12 +177,17 @@ def build_content_opf(manga_title: str, book_id: str, manifest_items: list, spin
 
 # ── Main builder ────────────────────────────────────────────────────────────
 
-def build_epub(manga_dir: Path, dpi: int = 150, grayscale: bool = False) -> Path:
+def build_epub(manga_dir: Path, dpi: int = 150, grayscale: bool = False,
+               pdfs: list = None, title_suffix: str = "") -> Path:
     manga_title = manga_dir.name.replace('_', ' ')
+    if title_suffix:
+        manga_title = f"{manga_title} {title_suffix}"
     book_id = str(uuid.uuid4())
-    output_path = manga_dir.parent / f"{manga_dir.name}.epub"
+    slug = manga_dir.name + (f"_{title_suffix.replace(' ', '_')}" if title_suffix else "")
+    output_path = manga_dir.parent / f"{slug}.epub"
 
-    pdfs = sorted(manga_dir.glob('*.pdf'), key=lambda p: natural_sort_key(p.name))
+    if pdfs is None:
+        pdfs = sorted(manga_dir.glob('*.pdf'), key=lambda p: natural_sort_key(p.name))
     if not pdfs:
         print(f"No PDFs found in {manga_dir}")
         sys.exit(1)
@@ -206,11 +211,11 @@ def build_epub(manga_dir: Path, dpi: int = 150, grayscale: bool = False) -> Path
         spine_items    = []
         toc_entries    = []
 
-        for chapter_pdf in pdfs:
+        for ch_idx, chapter_pdf in enumerate(pdfs, 1):
             chapter_name = chapter_pdf.stem.replace('_', ' ')
             prefix = re.sub(r'[^\w]', '_', chapter_pdf.stem)
 
-            print(f"  [{pdfs.index(chapter_pdf) + 1}/{len(pdfs)}] Extracting {chapter_name}...")
+            print(f"  [{ch_idx}/{len(pdfs)}] Extracting {chapter_name}...")
             try:
                 img_filenames = extract_chapter_images(chapter_pdf, images_dir, prefix, dpi,
                                                        grayscale=grayscale)
@@ -322,6 +327,68 @@ def pick_format() -> str:
         print(f"  Enter a number between 1 and {len(FORMAT_OPTIONS)}.")
 
 
+SPLIT_THRESHOLD = 30  # ask about splitting when chapter count exceeds this
+
+
+def pick_split(total: int) -> int | None:
+    """
+    Ask if user wants to split into volumes. Returns chapters-per-volume or None.
+    Only called when total > SPLIT_THRESHOLD.
+    """
+    print(f"\nSplit into volumes?")
+    print(f"  {total} chapters detected. Large ebooks can be slow on Kindle.")
+    raw = input("  Split into volumes? (y/N) ").strip().lower()
+    if raw != 'y':
+        return None
+
+    presets = [10, 20, 30]
+    print("\n  Chapters per volume:")
+    for i, n in enumerate(presets, 1):
+        vols = -(-total // n)  # ceiling division
+        print(f"    {i}. {n} chapters  ({vols} volumes)")
+    print(f"    Or enter a custom number (5-{total})")
+
+    while True:
+        raw = input("  Chapters per volume: ").strip()
+        if raw.isdigit():
+            n = int(raw)
+            if 1 <= n <= len(presets):
+                return presets[n - 1]
+            if 5 <= n <= total:
+                return n
+        print(f"  Enter 1-{len(presets)} or a number between 5 and {total}.")
+
+
+def build_ebooks(manga_dir: Path, dpi: int, grayscale: bool, fmt: str, split: int | None):
+    """Build one or more EPUBs (split into volumes if requested), then convert."""
+    all_pdfs = sorted(manga_dir.glob('*.pdf'), key=lambda p: natural_sort_key(p.name))
+    if not all_pdfs:
+        print(f"No PDFs found in {manga_dir}")
+        return
+
+    if split:
+        chunks = [all_pdfs[i:i + split] for i in range(0, len(all_pdfs), split)]
+        print(f"\n  Splitting into {len(chunks)} volumes of up to {split} chapters each.")
+    else:
+        chunks = [all_pdfs]
+
+    epub_paths = []
+    for vol_idx, chunk in enumerate(chunks, 1):
+        suffix = f"Vol{vol_idx:02d}" if split else ""
+        epub_path = build_epub(manga_dir, dpi=dpi, grayscale=grayscale,
+                               pdfs=chunk, title_suffix=suffix)
+        epub_paths.append(epub_path)
+
+    for epub_path in epub_paths:
+        if fmt in ('azw3', 'epub+azw3'):
+            convert_to_azw3(epub_path)
+        if fmt == 'azw3':
+            epub_path.unlink(missing_ok=True)
+
+    if fmt == 'azw3':
+        print("  EPUB files removed (AZW3 only mode)")
+
+
 def pick_grayscale() -> bool:
     """Ask user whether to use grayscale mode. Returns True/False."""
     print("\nGrayscale mode?")
@@ -377,13 +444,9 @@ if __name__ == '__main__':
     fmt = pick_format()
     gs  = pick_grayscale()
 
-    epub_path = build_epub(manga_dir, dpi=dpi, grayscale=gs)
+    total = len(list(manga_dir.glob('*.pdf')))
+    split = pick_split(total) if total > SPLIT_THRESHOLD else None
 
-    if fmt in ('azw3', 'epub+azw3'):
-        convert_to_azw3(epub_path)
-
-    if fmt == 'azw3':
-        epub_path.unlink(missing_ok=True)
-        print("  EPUB removed (AZW3 only mode)")
+    build_ebooks(manga_dir, dpi=dpi, grayscale=gs, fmt=fmt, split=split)
 
     print("\nDone.")

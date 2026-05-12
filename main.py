@@ -9,7 +9,9 @@ from browser import create_driver
 from logger import get_logger
 from scraper import search_manga, get_manga_title, get_chapters, get_chapter_images
 from downloader import download_chapter
-from to_ebook import build_epub, convert_to_azw3, pick_dpi, pick_format, pick_grayscale
+from to_ebook import (build_ebooks, convert_to_azw3,
+                      pick_dpi, pick_format, pick_grayscale, pick_split,
+                      SPLIT_THRESHOLD)
 
 log = get_logger(__name__)
 
@@ -166,10 +168,7 @@ if answer == 'y':
     fmt = pick_format()
     dpi = pick_dpi(default=100)
     gs  = pick_grayscale()
-    epub_path = build_epub(Path(manga_dir), dpi=dpi, grayscale=gs)
-    if fmt in ('azw3', 'epub+azw3'):
-        convert_to_azw3(epub_path)
-    if fmt == 'azw3':
-        epub_path.unlink(missing_ok=True)
-        print("  EPUB removed (AZW3 only mode)")
+    total_pdfs = len(list(Path(manga_dir).glob('*.pdf')))
+    split = pick_split(total_pdfs) if total_pdfs > SPLIT_THRESHOLD else None
+    build_ebooks(Path(manga_dir), dpi=dpi, grayscale=gs, fmt=fmt, split=split)
     print("\nDone.")
