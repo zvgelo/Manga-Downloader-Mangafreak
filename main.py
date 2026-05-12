@@ -9,9 +9,8 @@ from browser import create_driver
 from logger import get_logger
 from scraper import search_manga, get_manga_title, get_chapters, get_chapter_images
 from downloader import download_chapter
-from to_ebook import (build_ebooks, convert_to_azw3,
-                      pick_dpi, pick_format, pick_grayscale, pick_split,
-                      SPLIT_THRESHOLD)
+from to_ebook import (build_ebooks, pick_dpi, pick_kindle_settings, pick_format,
+                      pick_grayscale, pick_split, SPLIT_THRESHOLD, KINDLE_W, KINDLE_H)
 
 log = get_logger(__name__)
 
@@ -166,9 +165,15 @@ print("  Done.")
 answer = input("\nCreate ebook from downloaded chapters? (y/N) ").strip().lower()
 if answer == 'y':
     fmt = pick_format()
-    dpi = pick_dpi(default=100)
-    gs  = pick_grayscale()
+    if fmt == 'pdf':
+        dpi, gs = 100, False
+        fk, kw, kh, margin = False, KINDLE_W, KINDLE_H, 0.0
+    else:
+        dpi = pick_dpi(default=100)
+        gs  = pick_grayscale()
+        fk, kw, kh, margin = pick_kindle_settings()
     total_pdfs = len(list(Path(manga_dir).glob('*.pdf')))
     split = pick_split(total_pdfs) if total_pdfs > SPLIT_THRESHOLD else None
-    build_ebooks(Path(manga_dir), dpi=dpi, grayscale=gs, fmt=fmt, split=split)
+    build_ebooks(Path(manga_dir), dpi=dpi, grayscale=gs, fmt=fmt, split=split,
+                 fit_kindle=fk, kindle_w=kw, kindle_h=kh, margin_pct=margin)
     print("\nDone.")
