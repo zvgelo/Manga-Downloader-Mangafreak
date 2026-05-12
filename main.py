@@ -1,6 +1,7 @@
 import os
 import re
 import sys
+from pathlib import Path
 
 sys.stdout.reconfigure(line_buffering=True)
 
@@ -8,6 +9,7 @@ from browser import create_driver
 from logger import get_logger
 from scraper import search_manga, get_manga_title, get_chapters, get_chapter_images
 from downloader import download_chapter
+from to_ebook import build_epub, convert_to_azw3, pick_dpi, pick_format, pick_grayscale
 
 log = get_logger(__name__)
 
@@ -139,17 +141,35 @@ while True:
 
 selected = [chapters[i] for i in indices]
 
+# --- grayscale option ---
+grayscale = pick_grayscale()
+
 # --- download ---
 header(f"{manga_title}  |  Downloading {len(selected)} chapter(s)")
 for num, chapter in enumerate(selected, 1):
     print(f"  [{num}/{len(selected)}] {chapter['title']}")
     try:
         image_urls = get_chapter_images(driver, chapter)
-        download_chapter(manga_dir, manga_slug, chapter["title"], image_urls)
+        download_chapter(manga_dir, manga_slug, chapter["title"], image_urls,
+                         grayscale=grayscale)
     except Exception as e:
         log.exception("Error processing chapter '%s': %s", chapter["title"], e)
         print(f"  Error: {chapter['title']} failed — skipping (see manga_downloader.log)")
 
+driver.quit()
 print()
 print("  Done.")
-driver.quit()
+
+# --- ebook ---
+answer = input("\nCreate ebook from downloaded chapters? (y/N) ").strip().lower()
+if answer == 'y':
+    fmt = pick_format()
+    dpi = pick_dpi(default=100)
+    gs  = pick_grayscale()
+    epub_path = build_epub(Path(manga_dir), dpi=dpi, grayscale=gs)
+    if fmt in ('azw3', 'epub+azw3'):
+        convert_to_azw3(epub_path)
+    if fmt == 'azw3':
+        epub_path.unlink(missing_ok=True)
+        print("  EPUB removed (AZW3 only mode)")
+    print("\nDone.")
