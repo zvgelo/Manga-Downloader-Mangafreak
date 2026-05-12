@@ -16,6 +16,7 @@ Downloads manga chapters from [ww2.mangafreak.me](https://ww2.mangafreak.me), sa
 - `to_ebook.py` fully scriptable via CLI flags — no interactive prompts needed
 - Spread detection — splits landscape double-pages into portrait panels
 - Retry with exponential backoff on network errors
+- Fetches author metadata from [MangaDex](https://mangadex.org) — embedded in EPUB/MOBI
 - Error logging to `manga_downloader.log`
 
 ## Requirements
@@ -102,6 +103,13 @@ Margin (prevents blank continuation pages on Kindle):
   Default: 15%
   Margin % (Enter for 15%):
 
+Fetch metadata from MangaDex? (author, cover, description)
+  Fetch metadata? (Y/n): y
+  1. Boruto - Two Blue Vortex  (2023, ongoing)
+  2. Skip
+  Select (1-2): 1
+  Author: Kishimoto Masashi
+
 Split into volumes?
   33 chapters detected. Large ebooks can be slow on Kindle.
   Split into volumes? (y/N): y
@@ -183,6 +191,7 @@ to_ebook.py       — orchestration (build_ebooks) and CLI entry point
 epub_builder.py   — image extraction from PDFs and EPUB assembly
 ebook_convert.py  — MOBI conversion via Calibre and PDF merging
 ebook_prompts.py  — interactive prompts and Kindle / format constants
+metadata.py       — MangaDex API: author lookup and interactive picker
 logger.py         — logging configuration
 ```
 
