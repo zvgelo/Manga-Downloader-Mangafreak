@@ -1,42 +1,79 @@
-# Comprehensive-Manga-Downloader
-This is a python based crawler that allows you to search and download manga of any anime (any chapter). This crawls http://w12.mangafreak.net
-## Install Dependencies
-`pip3 install selenium fpdf`
-`pip3 install pillow`
+# Manga Downloader — MangaFreak
 
-Execute the script by using `python go.py`
+Downloads manga chapters from [ww2.mangafreak.me](https://ww2.mangafreak.me) and saves them as PDF files.
 
+## Features
 
-Execute the script:
+- Interactive terminal UI with search, chapter listing and selection
+- Flexible chapter selection: single, range, multiple picks or all at once
+- Skips already downloaded chapters automatically
+- Saves each chapter as a named PDF: `MangaTitle_Chapter_N.pdf`
+- Error logging to `manga_downloader.log`
 
-![screenshot](https://github.com/Akshat69/Manga-Downloader-Mangafreak-/blob/main/Capture_1.PNG)
+## Requirements
 
-Enter Anime name to be searched:
+- Python 3.9+
+- Google Chrome installed
 
-![screenshot](https://github.com/Akshat69/Manga-Downloader-Mangafreak-/blob/main/Capture_2.PNG)
+## Installation
 
-Anime Search Results:
+```bash
+pip install -r requirements.txt
+```
 
-![screenshot](https://github.com/Akshat69/Manga-Downloader-Mangafreak-/blob/main/Capture_3.PNG)
+`chromedriver` is downloaded automatically by `webdriver-manager` to match your installed Chrome version — no manual setup needed.
 
-Choose the index from the results
+## Usage
 
-![screenshot](https://github.com/Akshat69/Manga-Downloader-Mangafreak-/blob/main/Capture_4.PNG)
+```bash
+python main.py
+```
 
-Select the chapter or press zero for a range of chapters. 
+The tool walks you through three steps:
 
-![screenshot](https://github.com/Akshat69/Manga-Downloader-Mangafreak-/blob/main/Capture_5.PNG)
+**1. Search**
+```
+Search manga: boruto two blue vortex
+```
 
-Script will download the zips to extract and convert them run the following script.
-`python images_to_pdf.py`
+**2. Pick manga from results**
+```
+  1. Boruto Two Blue Vortex
+     33 Chapters Published. (Ongoing)
 
-![screenshot](https://github.com/Akshat69/Manga-Downloader-Mangafreak-/blob/main/Capture_6.PNG)
+Select manga (1-1): 1
+```
 
-Enter the Subname of ZipFiles.
-(for eg : `Mairimashita_Iruma_Kun` from `Mairimashita_Iruma_Kun_100.zip`
-![screenshot](https://github.com/Akshat69/Manga-Downloader-Mangafreak-/blob/main/Capture_7.PNG)
+**3. Select chapters to download**
 
-Finally The zips will unzipped and be converted into respective PDFs and stored in a new folder in present Directory
-![screenshot](https://github.com/Akshat69/Manga-Downloader-Mangafreak-/blob/main/Capture_9.PNG)
+| Input     | Result                        |
+|-----------|-------------------------------|
+| `all`     | all chapters                  |
+| `5`       | chapter 5 only                |
+| `1-3`     | chapters 1, 2, 3              |
+| `1,3,7`   | chapters 1, 3 and 7           |
+| `1-3,7,10`| chapters 1, 2, 3, 7 and 10   |
 
-Enjoy Reading your Favourite Manga :))))))))
+## Output structure
+
+```
+manga/
+└── Boruto_Two_Blue_Vortex/
+    ├── Boruto_Two_Blue_Vortex_Chapter_1.pdf
+    ├── Boruto_Two_Blue_Vortex_Chapter_2.pdf
+    └── ...
+```
+
+## Project structure
+
+```
+main.py        — entry point, UI and flow orchestration
+browser.py     — Selenium / Chrome setup
+scraper.py     — search, chapter listing, image URL extraction
+downloader.py  — image downloading and PDF generation
+logger.py      — logging configuration
+```
+
+## Logging
+
+Errors are logged to `manga_downloader.log` in the project root with timestamps and full tracebacks. The file is created on first run and is excluded from git.

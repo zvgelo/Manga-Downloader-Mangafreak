@@ -1,0 +1,6 @@
+manga/
+__pycache__/
+.venv/
+*.pyc
+.claude
+manga_downloader.log
