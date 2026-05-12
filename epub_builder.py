@@ -153,7 +153,27 @@ def build_toc_ncx(manga_title: str, book_id: str, toc_entries: list) -> str:
 
 
 def build_content_opf(manga_title: str, book_id: str,
-                      manifest_items: list, spine_items: list) -> str:
+                      manifest_items: list, spine_items: list,
+                      metadata=None) -> str:
+    import html as _html
+
+    meta_lines = [
+        f'    <dc:identifier id="uid">{book_id}</dc:identifier>',
+        f'    <dc:title>{manga_title}</dc:title>',
+        '    <dc:language>ja</dc:language>',
+    ]
+    if metadata:
+        if getattr(metadata, 'author', ''):
+            meta_lines.append(f'    <dc:creator>{_html.escape(metadata.author)}</dc:creator>')
+        artist = getattr(metadata, 'artist', '')
+        if artist and artist != metadata.author:
+            meta_lines.append(f'    <dc:creator>{_html.escape(artist)}</dc:creator>')
+        if getattr(metadata, 'year', None):
+            meta_lines.append(f'    <dc:date>{metadata.year}-01-01</dc:date>')
+        if getattr(metadata, 'description', ''):
+            meta_lines.append(
+                f'    <dc:description>{_html.escape(metadata.description)}</dc:description>'
+            )
     manifest_lines = [
         '    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>',
         '    <item id="ncx" href="toc.ncx" media-type="application/x-dtbncx+xml"/>',
@@ -163,19 +183,18 @@ def build_content_opf(manga_title: str, book_id: str,
             f'    <item id="{item_id}" href="{href}" media-type="{media_type}"/>'
         )
     spine_lines = [f'    <itemref idref="{item}"/>' for item in spine_items]
+
     return f"""\
 <?xml version="1.0" encoding="UTF-8"?>
 <package version="3.0" xmlns="http://www.idpf.org/2007/opf" unique-identifier="uid">
   <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
-    <dc:identifier id="uid">{book_id}</dc:identifier>
-    <dc:title>{manga_title}</dc:title>
-    <dc:language>ja</dc:language>
+{chr(10).join(meta_lines)}
   </metadata>
   <manifest>
-{"    " + chr(10) + "    ".join(manifest_lines)}
+{chr(10).join(manifest_lines)}
   </manifest>
   <spine toc="ncx" page-progression-direction="rtl">
-{"    " + chr(10) + "    ".join(spine_lines)}
+{chr(10).join(spine_lines)}
   </spine>
 </package>"""
 
@@ -183,7 +202,8 @@ def build_content_opf(manga_title: str, book_id: str,
 def build_epub(manga_dir: Path, dpi: int = 150, grayscale: bool = False,
                pdfs: list = None, title_suffix: str = "",
                fit_kindle: bool = False, kindle_w: int = 1072,
-               kindle_h: int = 1448, margin_pct: float = 0.0) -> Path:
+               kindle_h: int = 1448, margin_pct: float = 0.0,
+               metadata=None) -> Path:
     manga_title = manga_dir.name.replace('_', ' ')
     if title_suffix:
         manga_title = f"{manga_title} {title_suffix}"
@@ -252,7 +272,8 @@ def build_epub(manga_dir: Path, dpi: int = 150, grayscale: bool = False,
             build_toc_ncx(manga_title, book_id, toc_entries), encoding='utf-8'
         )
         (oebps / 'content.opf').write_text(
-            build_content_opf(manga_title, book_id, manifest_items, spine_items),
+            build_content_opf(manga_title, book_id, manifest_items, spine_items,
+                              metadata=metadata),
             encoding='utf-8',
         )
 

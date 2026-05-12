@@ -9,7 +9,7 @@ from logger import get_logger
 log = get_logger(__name__)
 
 
-def convert_to_mobi(epub_path: Path):
+def convert_to_mobi(epub_path: Path, metadata=None):
     ebook_convert = shutil.which('ebook-convert')
     if not ebook_convert:
         print("\nCalibre not found — cannot convert to MOBI automatically.")
@@ -19,16 +19,20 @@ def convert_to_mobi(epub_path: Path):
         return
 
     mobi_path = epub_path.with_suffix('.mobi')
+
+    cmd = [ebook_convert, str(epub_path), str(mobi_path),
+           '--output-profile', 'kindle_pw3',
+           '--mobi-keep-original-images',
+           '--margin-top', '0', '--margin-bottom', '0',
+           '--margin-left', '0', '--margin-right', '0',
+           '--chapter-mark', 'none']
+
+    if metadata and getattr(metadata, 'author', ''):
+        cmd += ['--authors', metadata.author]
+
     print("Converting to MOBI via Calibre...")
-    result = subprocess.run(
-        [ebook_convert, str(epub_path), str(mobi_path),
-         '--output-profile', 'kindle_pw3',
-         '--mobi-keep-original-images',
-         '--margin-top', '0', '--margin-bottom', '0',
-         '--margin-left', '0', '--margin-right', '0',
-         '--chapter-mark', 'none'],
-        capture_output=True, text=True,
-    )
+    result = subprocess.run(cmd, capture_output=True, text=True)
+
     if result.returncode == 0:
         size_mb = mobi_path.stat().st_size / 1024 / 1024
         print(f"Saved: {mobi_path} ({size_mb:.1f} MB)")
