@@ -9,6 +9,7 @@ Downloads manga chapters from [ww2.mangafreak.me](https://ww2.mangafreak.me), sa
 - Skips already downloaded chapters automatically
 - Grayscale mode — reduces file size ~40%, ideal for B&W manga and Kindle
 - Exports to **EPUB** or **AZW3** (Kindle KF8) with chapter table of contents
+- Volume splitting — automatically prompts to split large manga (>30 chapters) into volumes
 - Adjustable image DPI for ebook export
 - Retry with exponential backoff on network errors
 - Error logging to `manga_downloader.log`
@@ -68,12 +69,30 @@ Grayscale mode?
 
 **5. Ebook export (optional)**
 
-After downloading, the tool asks if you want to create an ebook:
-```
-Create ebook from downloaded chapters? (y/N)
-```
+After downloading, the tool asks if you want to create an ebook. You choose format, DPI, grayscale and — for large manga — whether to split into volumes:
 
-If yes, you choose output format, DPI and grayscale mode interactively.
+```
+Create ebook from downloaded chapters? (y/N): y
+
+Output format:
+  1. EPUB only           — universal format, all readers
+  2. AZW3 only           — Kindle USB transfer (recommended)
+  3. EPUB + AZW3         — both files
+
+Split into volumes?
+  33 chapters detected. Large ebooks can be slow on Kindle.
+  Split into volumes? (y/N): y
+
+  Chapters per volume:
+    1. 10 chapters  (4 volumes)
+    2. 20 chapters  (2 volumes)
+    3. 30 chapters  (2 volumes)
+    Or enter a custom number (5-33)
+  Chapters per volume: 20
+
+  → Building Boruto Two Blue Vortex Vol01  (chapters 1-20)
+  → Building Boruto Two Blue Vortex Vol02  (chapters 21-33)
+```
 
 ### Export existing downloads to ebook
 
@@ -85,19 +104,19 @@ python to_ebook.py manga/Boruto_Two_Blue_Vortex --dpi 100
 
 **Format options:**
 
-| Option       | Description                              |
-|--------------|------------------------------------------|
-| EPUB only    | Universal format, all readers            |
-| AZW3 only    | Kindle USB transfer (recommended)        |
-| EPUB + AZW3  | Both files                               |
+| Option      | Description                       |
+|-------------|-----------------------------------|
+| EPUB only   | Universal format, all readers     |
+| AZW3 only   | Kindle USB transfer (recommended) |
+| EPUB + AZW3 | Both files                        |
 
 **DPI guide:**
 
-| DPI | Quality       | ~Size per chapter |
-|-----|---------------|-------------------|
-| 150 | High          | ~15 MB            |
-| 100 | Medium        | ~10 MB (recommended for Kindle email) |
-| 72  | Low           | ~4 MB             |
+| DPI | Quality | ~Size per chapter |
+|-----|---------|-------------------|
+| 150 | High    | ~15 MB            |
+| 100 | Medium  | ~10 MB (recommended for Kindle email) |
+| 72  | Low     | ~4 MB             |
 
 Transfer AZW3 to Kindle via USB to the `documents/` folder.
 
@@ -109,8 +128,14 @@ manga/
     ├── Boruto_Two_Blue_Vortex_Chapter_1.pdf
     ├── Boruto_Two_Blue_Vortex_Chapter_2.pdf
     └── ...
+
+# Single ebook
 Boruto_Two_Blue_Vortex.epub
 Boruto_Two_Blue_Vortex.azw3
+
+# Split into volumes
+Boruto_Two_Blue_Vortex_Vol01.epub
+Boruto_Two_Blue_Vortex_Vol02.epub
 ```
 
 ## Project structure
@@ -120,7 +145,7 @@ main.py        — entry point, UI and download orchestration
 browser.py     — Selenium / Chrome setup
 scraper.py     — search, chapter listing, image URL extraction
 downloader.py  — image downloading and PDF generation
-to_ebook.py    — PDF to EPUB / AZW3 conversion
+to_ebook.py    — PDF to EPUB / AZW3 conversion with volume splitting
 logger.py      — logging configuration
 ```
 
