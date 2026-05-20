@@ -1,31 +1,10 @@
 import sys
 from pathlib import Path
 
-
-KINDLE_W = 1072
-KINDLE_H = 1448
-
-KINDLE_PRESETS = [
-    ("Kindle basic 11th gen 2022  (6\")",        1072, 1448),
-    ("Kindle Paperwhite / Oasis   (6.8\")",       1264, 1680),
-    ("Kindle Scribe               (10.2\")",      1860, 2480),
-]
-KINDLE_DEFAULT_MARGIN = 15.0
-
-FORMAT_OPTIONS = [
-    ("epub",      "EPUB only      — universal format, all readers"),
-    ("mobi",      "MOBI only      — Kindle USB transfer"),
-    ("epub+mobi", "EPUB + MOBI    — both files"),
-    ("pdf",       "PDF only       — merged single file, no re-encoding"),
-]
-
-SPLIT_THRESHOLD = 30
-
-DPI_PRESETS = [
-    (150, "High    — best quality, ~15 MB/chapter"),
-    (100, "Medium  — recommended for Kindle email"),
-    (72,  "Low     — smallest file, ~4 MB/chapter"),
-]
+from config import (
+    KINDLE_W, KINDLE_H, KINDLE_DEFAULT_MARGIN, KINDLE_PRESETS,
+    FORMAT_OPTIONS, SPLIT_THRESHOLD, DPI_PRESETS,
+)
 
 
 def pick_manga_folder() -> Path:

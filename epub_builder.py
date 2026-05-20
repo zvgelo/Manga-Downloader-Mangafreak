@@ -235,8 +235,11 @@ def build_epub(manga_dir: Path, dpi: int = 150, grayscale: bool = False,
         manifest_items = []
         all_chapters   = []
 
+        manga_prefix = manga_dir.name.replace('_', ' ') + ' '
         for ch_idx, chapter_pdf in enumerate(pdfs, 1):
             chapter_name = chapter_pdf.stem.replace('_', ' ')
+            if chapter_name.startswith(manga_prefix):
+                chapter_name = chapter_name[len(manga_prefix):]
             prefix = re.sub(r'[^\w]', '_', chapter_pdf.stem)
             print(f"  [{ch_idx}/{len(pdfs)}] Extracting {chapter_name}...")
             try:

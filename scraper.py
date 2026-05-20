@@ -1,12 +1,11 @@
+import config
 from selenium.webdriver.common.by import By
 import time
-
-BASE_URL = "https://ww2.mangafreak.me"
 
 
 def search_manga(driver, query):
     slug = '%20'.join(query.lower().split())
-    driver.get(f"{BASE_URL}/Find/{slug}")
+    driver.get(f"{config.MANGA_BASE_URL}/Find/{slug}")
     while True:
         try:
             driver.find_element(By.LINK_TEXT, "Home")
@@ -23,22 +22,23 @@ def get_manga_title(result_item):
 def get_chapters(driver, result_item):
     """Returns list of dicts: [{title, url}] — extracted before any navigation."""
     result_item.find_element(By.TAG_NAME, "a").click()
-    series_list = driver.find_element(By.CLASS_NAME, "manga_series_list")
-    rows = series_list.find_elements(By.TAG_NAME, "tr")[1:]  # skip header
-    chapters = []
-    for row in rows:
-        tds = row.find_elements(By.TAG_NAME, "td")
-        if not tds:
-            continue
-        a = tds[0].find_element(By.TAG_NAME, "a")
-        chapters.append({"title": tds[0].text.strip(), "url": a.get_attribute("href")})
-    return chapters
+    driver.find_element(By.CLASS_NAME, "manga_series_list")  # wait for page load
+    return driver.execute_script("""
+        const rows = document.querySelector('.manga_series_list').querySelectorAll('tr');
+        const result = [];
+        for (let i = 1; i < rows.length; i++) {
+            const td = rows[i].querySelector('td');
+            const a = td && td.querySelector('a');
+            if (a) result.push({title: td.textContent.trim(), url: a.href});
+        }
+        return result;
+    """)
 
 
 def get_chapter_images(driver, chapter):
     """chapter is a dict with 'title' and 'url'."""
     driver.get(chapter["url"])
-    time.sleep(3)
+    time.sleep(config.PAGE_LOAD_WAIT)
 
     seen = set()
     image_urls = []

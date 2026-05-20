@@ -38,6 +38,12 @@ def build_ebooks(manga_dir: Path, dpi: int, grayscale: bool, fmt: str,
     if split:
         print(f"\n  Splitting into {len(chunks)} volumes of up to {split} chapters each.")
 
+    meta = None
+    if fmt != 'pdf':
+        from metadata import pick_metadata
+        manga_title = manga_dir.name.replace('_', ' ')
+        meta = pick_metadata(manga_title)
+
     for vol_idx, chunk in enumerate(chunks, 1):
         suffix = f"Vol{vol_idx:02d}" if split else ""
         if fmt == 'pdf':
@@ -48,9 +54,10 @@ def build_ebooks(manga_dir: Path, dpi: int, grayscale: bool, fmt: str,
                 pdfs=chunk, title_suffix=suffix,
                 fit_kindle=fit_kindle, kindle_w=kindle_w,
                 kindle_h=kindle_h, margin_pct=margin_pct,
+                metadata=meta,
             )
             if fmt in ('mobi', 'epub+mobi'):
-                convert_to_mobi(epub_path)
+                convert_to_mobi(epub_path, metadata=meta)
             if fmt == 'mobi':
                 epub_path.unlink(missing_ok=True)
 

@@ -6,7 +6,11 @@ Downloads manga chapters from [ww2.mangafreak.me](https://ww2.mangafreak.me), sa
 
 - Interactive terminal UI with clear-screen headers
 - Flexible chapter selection: single, range, comma-separated picks or all at once
+- Parallel downloading — browser pool for URL collection, concurrent chapter and image workers
+- Rich split-screen live UI — left panel tracks URL fetching, right panel shows image download progress
 - Skips already downloaded chapters automatically
+- Whole-chapter retry with configurable attempts on top of per-image retries
+- PDF integrity verification — page count checked after each chapter save
 - Grayscale mode — reduces file size ~40%, ideal for B&W manga and Kindle
 - Exports to **EPUB**, **MOBI** (Kindle USB transfer) or merged **PDF** with table of contents
 - Kindle screen fit — resizes pages to prevent blank overflow pages, with configurable margin
@@ -183,14 +187,16 @@ Boruto_Two_Blue_Vortex_Vol02.mobi
 ## Project structure
 
 ```
-main.py           — entry point, UI and download orchestration
+main.py           — entry point, download orchestration and parallel workers
+config.py         — all tuneable constants (workers, retries, Kindle presets, etc.)
 browser.py        — Selenium / Chrome setup
 scraper.py        — search, chapter listing, image URL extraction
 downloader.py     — image downloading, spread detection and PDF generation
+ui.py             — rich split-screen live download UI
 to_ebook.py       — orchestration (build_ebooks) and CLI entry point
 epub_builder.py   — image extraction from PDFs and EPUB assembly
 ebook_convert.py  — MOBI conversion via Calibre and PDF merging
-ebook_prompts.py  — interactive prompts and Kindle / format constants
+ebook_prompts.py  — interactive prompts for ebook options
 metadata.py       — MangaDex API: author lookup and interactive picker
 logger.py         — logging configuration
 ```

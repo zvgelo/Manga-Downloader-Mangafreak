@@ -56,8 +56,11 @@ def merge_to_pdf(manga_dir: Path, pdfs: list, title_suffix: str = "") -> Path:
     toc = []
     current_page = 0
 
+    manga_prefix = manga_dir.name.replace('_', ' ') + ' '
     for pdf_path in pdfs:
         chapter_name = pdf_path.stem.replace('_', ' ')
+        if chapter_name.startswith(manga_prefix):
+            chapter_name = chapter_name[len(manga_prefix):]
         doc = pymupdf.open(str(pdf_path))
         toc.append([1, chapter_name, current_page + 1])
         merged.insert_pdf(doc)
