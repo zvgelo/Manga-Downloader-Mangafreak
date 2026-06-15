@@ -24,8 +24,13 @@ from ebook_prompts import (
 def build_ebooks(manga_dir: Path, dpi: int, grayscale: bool, fmt: str,
                  split: int | None, fit_kindle: bool = False,
                  kindle_w: int = KINDLE_W, kindle_h: int = KINDLE_H,
-                 margin_pct: float = 0.0):
-    """Build ebooks (split into volumes if requested). Handles epub/mobi/pdf."""
+                 margin_pct: float = 0.0, metadata=None):
+    """
+    Build ebooks (split into volumes if requested). Handles epub/mobi/pdf.
+
+    `metadata` (a MangaMetadata or None) is supplied by the caller — this
+    function performs no prompting, so it can be driven by a CLI or a GUI.
+    """
     all_pdfs = sorted(manga_dir.glob('*.pdf'), key=lambda p: natural_sort_key(p.name))
     if not all_pdfs:
         print(f"No PDFs found in {manga_dir}")
@@ -38,11 +43,7 @@ def build_ebooks(manga_dir: Path, dpi: int, grayscale: bool, fmt: str,
     if split:
         print(f"\n  Splitting into {len(chunks)} volumes of up to {split} chapters each.")
 
-    meta = None
-    if fmt != 'pdf':
-        from metadata import pick_metadata
-        manga_title = manga_dir.name.replace('_', ' ')
-        meta = pick_metadata(manga_title)
+    meta = metadata
 
     for vol_idx, chunk in enumerate(chunks, 1):
         suffix = f"Vol{vol_idx:02d}" if split else ""
@@ -164,7 +165,13 @@ examples:
         total = len(list(manga_dir.glob('*.pdf')))
         split = pick_split(total) if total > SPLIT_THRESHOLD else None
 
+    meta = None
+    if fmt != 'pdf':
+        from metadata_prompts import pick_metadata
+        meta = pick_metadata(manga_dir.name.replace('_', ' '))
+
     build_ebooks(manga_dir, dpi=dpi, grayscale=gs, fmt=fmt, split=split,
-                 fit_kindle=fk, kindle_w=kw, kindle_h=kh, margin_pct=margin)
+                 fit_kindle=fk, kindle_w=kw, kindle_h=kh, margin_pct=margin,
+                 metadata=meta)
 
     print("\nDone.")

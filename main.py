@@ -8,7 +8,7 @@ sys.stdout.reconfigure(line_buffering=True)
 from config import KINDLE_H, KINDLE_W, SPLIT_THRESHOLD
 from ebook_prompts import (pick_dpi, pick_format, pick_grayscale,
                            pick_kindle_settings, pick_split)
-from metadata import enrich_chapter_titles
+from metadata_prompts import enrich_chapter_titles, pick_metadata
 from service import DownloadService
 from settings import Settings
 from to_ebook import build_ebooks
@@ -169,10 +169,12 @@ def main():
             dpi = pick_dpi(default=100)
             gs  = pick_grayscale()
             fk, kw, kh, margin = pick_kindle_settings()
+        meta = pick_metadata(manga_title) if fmt != 'pdf' else None
         total_pdfs = len(list(Path(manga_dir).glob('*.pdf')))
         split = pick_split(total_pdfs) if total_pdfs > SPLIT_THRESHOLD else None
         build_ebooks(Path(manga_dir), dpi=dpi, grayscale=gs, fmt=fmt, split=split,
-                     fit_kindle=fk, kindle_w=kw, kindle_h=kh, margin_pct=margin)
+                     fit_kindle=fk, kindle_w=kw, kindle_h=kh, margin_pct=margin,
+                     metadata=meta)
         print("\nDone.")
 
 
