@@ -1,28 +1,20 @@
-import config
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from fpdf import FPDF
-from logger import get_logger
-from pathlib import Path
-from PIL import Image
 import os
-import pymupdf
 import re
 import shutil
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from pathlib import Path
+
+import pymupdf
 import requests
+from fpdf import FPDF
+from PIL import Image
+
+from events import DownloadObserver
+from logger import get_logger
+from settings import DEFAULT_SETTINGS
 
 log = get_logger(__name__)
-
-_HEADERS      = {"Referer": config.MANGA_IMG_REFERER}
-_MARKUP_RE    = re.compile(r'\[/?[^\]]*\]')   # strip rich markup for plain fallback
-
-
-def _bar_desc(phase: str, chapter_text: str, grayscale: bool) -> str:
-    """Fixed-width task description with rich colour markup."""
-    suffix = " [gs]" if grayscale else ""
-    name = (chapter_text + suffix)[:config.BAR_NAME_WIDTH]
-    color = "cyan" if phase == "↓" else "yellow"
-    return f"[bold {color}]{phase}[/bold {color}]  {name:<{config.BAR_NAME_WIDTH}}"
 
 
 def chapter_number(chapter_text: str) -> str:
@@ -56,7 +48,7 @@ def _open(img_path: str, grayscale: bool) -> Image.Image:
 
 def _row_brightness(img_gray, row):
     row_img = img_gray.crop((0, row, img_gray.width, row + 1))
-    return sum(img_gray.crop((0, row, img_gray.width, row + 1)).getdata()) / img_gray.width
+    return sum(row_img.getdata()) / img_gray.width
 
 
 def _find_content_height(img_gray):
@@ -107,7 +99,7 @@ def _slice_columns(img, img_path, n, y_start, y_end, grayscale):
     return slices
 
 
-def add_image_to_pdf(pdf: FPDF, img_path: str, grayscale: bool):
+def add_image_to_pdf(pdf: FPDF, img_path: str, grayscale: bool, settings=DEFAULT_SETTINGS):
     """
     Add image to current PDF page fitting within A4 with correct aspect ratio.
     Passes PIL Image to fpdf2 to avoid the grayscale JPEG tiling bug.
@@ -116,7 +108,7 @@ def add_image_to_pdf(pdf: FPDF, img_path: str, grayscale: bool):
     img_w, img_h = img.size
     aspect = img_w / img_h
 
-    pw, ph = config.PAGE_W, config.PAGE_H
+    pw, ph = settings.page_w, settings.page_h
     if aspect > pw / ph:
         w = pw;  h = pw / aspect;  x = 0;          y = (ph - h) / 2
     else:
@@ -126,19 +118,20 @@ def add_image_to_pdf(pdf: FPDF, img_path: str, grayscale: bool):
     pdf.image(img, x, y, w=w, h=h)
 
 
-def _fetch_image(idx, url, chapter_dir):
+def _fetch_image(idx, url, chapter_dir, settings=DEFAULT_SETTINGS):
     ext = url.split(".")[-1].split("?")[0]   # strip query strings
     img_path = os.path.join(chapter_dir, f"{idx + 1:03d}.{ext}")
-    for attempt in range(config.MAX_RETRIES):
+    headers = {"Referer": settings.manga_img_referer}
+    for attempt in range(settings.max_retries):
         try:
-            resp = requests.get(url, headers=_HEADERS, timeout=60)
+            resp = requests.get(url, headers=headers, timeout=60)
             resp.raise_for_status()
             with open(img_path, "wb") as f:
                 f.write(resp.content)
 
             # Validate: minimum size
             size = os.path.getsize(img_path)
-            if size < config.MIN_IMAGE_SIZE:
+            if size < settings.min_image_size:
                 raise ValueError(f"Image too small ({size} B) — likely an error response")
 
             # Validate: PIL can fully decode the image
@@ -149,88 +142,73 @@ def _fetch_image(idx, url, chapter_dir):
         except Exception as e:
             if os.path.exists(img_path):
                 os.unlink(img_path)
-            if attempt == config.MAX_RETRIES - 1:
-                log.error("Failed after %d attempts: %s — %s", config.MAX_RETRIES, url, e)
+            if attempt == settings.max_retries - 1:
+                log.error("Failed after %d attempts: %s — %s", settings.max_retries, url, e)
                 raise
             log.warning("Attempt %d failed for %s: %s", attempt + 1, url, e)
-            time.sleep(config.RETRY_BACKOFF ** attempt)
+            time.sleep(settings.retry_backoff ** attempt)
 
 
 def download_chapter(manga_dir, manga_slug, chapter_text, image_urls,
-                     grayscale=False, progress=None, on_done=None):
+                     grayscale=False, observer=None, settings=DEFAULT_SETTINGS):
+    observer = observer or DownloadObserver()
     path, ch_num = pdf_path(manga_dir, manga_slug, chapter_text)
 
-    def _out(markup: str) -> None:
-        if progress:
-            progress.console.print(markup)
-        else:
-            print(_MARKUP_RE.sub('', markup))
-
     if is_downloaded(manga_dir, manga_slug, chapter_text):
-        _out(f"  [dim]Skipping {chapter_text} — already downloaded[/dim]")
+        observer.message(f"Skipping {chapter_text} — already downloaded")
         return
+
+    if not image_urls:
+        raise ValueError(
+            f"No image URLs for '{chapter_text}' — page layout may have changed")
 
     chapter_dir = os.path.join(manga_dir, f"Chapter_{ch_num}")
     os.makedirs(chapter_dir, exist_ok=True)
 
-    task = (progress.add_task(_bar_desc("↓", chapter_text, grayscale), total=len(image_urls))
-            if progress is not None else None)
+    observer.download_started(chapter_text, len(image_urls))
+
+    # Phase 1: download images
+    with ThreadPoolExecutor(max_workers=settings.image_workers) as executor:
+        future_to_idx = {
+            executor.submit(_fetch_image, idx, url, chapter_dir, settings): idx
+            for idx, url in enumerate(image_urls)
+        }
+        results = {}
+        for future in as_completed(future_to_idx):
+            results[future_to_idx[future]] = future.result()
+            observer.image_downloaded(chapter_text)
+    image_paths = [results[i] for i in range(len(image_urls))]
+
+    # Phase 2: build PDF
+    observer.build_started(chapter_text, len(image_paths))
     try:
-        # Phase 1: download images
-        with ThreadPoolExecutor(max_workers=config.IMAGE_WORKERS) as executor:
-            future_to_idx = {
-                executor.submit(_fetch_image, idx, url, chapter_dir): idx
-                for idx, url in enumerate(image_urls)
-            }
-            results = {}
-            for future in as_completed(future_to_idx):
-                results[future_to_idx[future]] = future.result()
-                if task is not None:
-                    progress.advance(task)
-        image_paths = [results[i] for i in range(len(image_urls))]
+        pdf = FPDF()
+        pdf_pages = 0
+        for img_path in image_paths:
+            for page_path in split_spread(img_path, grayscale):
+                pdf.add_page()
+                add_image_to_pdf(pdf, page_path, grayscale, settings)
+                pdf_pages += 1
+                if page_path != img_path:
+                    os.unlink(page_path)
+            observer.page_built(chapter_text)
 
-        # Phase 2: build PDF
-        if task is not None:
-            progress.update(task,
-                            description=_bar_desc("→", chapter_text, grayscale),
-                            total=len(image_paths),
-                            completed=0)
-        try:
-            pdf = FPDF()
-            pdf_pages = 0
-            for img_path in image_paths:
-                for page_path in split_spread(img_path, grayscale):
-                    pdf.add_page()
-                    add_image_to_pdf(pdf, page_path, grayscale)
-                    pdf_pages += 1
-                    if page_path != img_path:
-                        os.unlink(page_path)
-                if task is not None:
-                    progress.advance(task)
+        pdf.output(path)
 
-            pdf.output(path)
+        # Verify PDF: page count and file integrity
+        with pymupdf.open(path) as _doc:
+            saved_pages = len(_doc)
+        if saved_pages != pdf_pages:
+            raise RuntimeError(
+                f"PDF page mismatch: built {pdf_pages}, saved {saved_pages}")
 
-            # Verify PDF: page count and file integrity
-            with pymupdf.open(path) as _doc:
-                saved_pages = len(_doc)
-            if saved_pages != pdf_pages:
-                raise RuntimeError(
-                    f"PDF page mismatch: built {pdf_pages}, saved {saved_pages}")
-
-            shutil.rmtree(chapter_dir)
-            spreads = pdf_pages - len(image_paths)
-            extra = f" (+{spreads} from spreads)" if spreads else ""
-            _out(f"  [bold green]✓[/bold green] [green]{os.path.basename(path)}[/green]"
-                 f"  [dim]({pdf_pages} pages{extra})[/dim]")
-            if on_done:
-                on_done()
-        except Exception as e:
-            log.exception("Failed to create PDF for '%s': %s", chapter_text, e)
-            shutil.rmtree(chapter_dir, ignore_errors=True)
-            raise
-    finally:
-        if task is not None:
-            progress.remove_task(task)
+        shutil.rmtree(chapter_dir)
+        spreads = pdf_pages - len(image_paths)
+        observer.chapter_saved(chapter_text, os.path.basename(path), pdf_pages, spreads)
+    except Exception as e:
+        log.exception("Failed to create PDF for '%s': %s", chapter_text, e)
+        shutil.rmtree(chapter_dir, ignore_errors=True)
+        raise
 
 
 def is_downloaded(manga_dir, manga_slug, chapter_text) -> bool:

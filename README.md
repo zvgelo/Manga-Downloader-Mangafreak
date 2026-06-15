@@ -187,19 +187,61 @@ Boruto_Two_Blue_Vortex_Vol02.mobi
 ## Project structure
 
 ```
-main.py           — entry point, download orchestration and parallel workers
-config.py         — all tuneable constants (workers, retries, Kindle presets, etc.)
-browser.py        — Selenium / Chrome setup
+─ core (frontend-agnostic — no input()/print()) ─
+service.py        — DownloadService: browser lifecycle + download pipeline
 scraper.py        — search, chapter listing, image URL extraction
 downloader.py     — image downloading, spread detection and PDF generation
-ui.py             — rich split-screen live download UI
+models.py         — domain data objects (SearchResult, Chapter)
+settings.py       — Settings dataclass: injectable runtime configuration
+events.py         — DownloadObserver: presentation-neutral progress sink
+browser.py        — Selenium / Chrome setup
+config.py         — static catalogs (Kindle/DPI/format presets) + UI widths
+
+─ frontends ─
+main.py           — CLI entry point: prompts + RichDownloadObserver
+ui.py             — rich split-screen UI + RichDownloadObserver
+
+─ ebook export ─
 to_ebook.py       — orchestration (build_ebooks) and CLI entry point
 epub_builder.py   — image extraction from PDFs and EPUB assembly
 ebook_convert.py  — MOBI conversion via Calibre and PDF merging
 ebook_prompts.py  — interactive prompts for ebook options
 metadata.py       — MangaDex API: author lookup and interactive picker
+
 logger.py         — logging configuration
 ```
+
+## Architecture
+
+The download logic lives in a frontend-agnostic **core** so it can back more
+than one frontend without being rewritten:
+
+- **CLI** (`rich` terminal UI) — available today (`main.py`)
+- **GUI** — can be added as a second frontend over the same core
+
+Three seams make this possible:
+
+1. **Plain data, not live browser handles.** The scraper returns serializable
+   dataclasses (`models.py`: `SearchResult`, `Chapter`) instead of Selenium
+   `WebElement`s, so results can cross threads, be cached, serialized to JSON,
+   or sent to a web backend without a live browser session.
+2. **Injectable settings.** `Settings` (`settings.py`) is a frozen dataclass of
+   runtime knobs (concurrency, retries, timeouts). A frontend builds one from
+   user input and hands it to the core; nothing reads module globals.
+3. **Presentation-neutral progress.** The core reports progress by calling a
+   `DownloadObserver` (`events.py`) — a no-op base class. `RichDownloadObserver`
+   renders to the terminal; a GUI subclass would update widgets or push over a
+   socket. The core never imports `rich`.
+
+`DownloadService` (`service.py`) ties these together: it owns the browser pool
+and the producer/consumer/retry pipeline, accepts a `Settings` and a
+`DownloadObserver`, and exposes `search()` / `list_chapters()` / `download()`.
+A GUI frontend would construct a `DownloadService`, render the observer events,
+and never touch the download logic.
+
+> Still interactive (CLI-only) for now: the MangaDex metadata/title pickers and
+> the ebook-option prompts (`metadata.py`, `ebook_prompts.py`). Splitting their
+> data lookups from their prompts is the remaining step toward a full GUI.
 
 ## Logging
 
