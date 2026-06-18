@@ -86,6 +86,22 @@ def test_chapter_dir_cleaned_up(tmp_path, fake_jpeg):
     assert not (tmp_path / "Chapter_1").exists()
 
 
+def test_chapter_dir_cleaned_up_on_download_failure(tmp_path, monkeypatch):
+    # a failure during the image-download phase must still remove the scratch dir
+    def boom(*a, **k):
+        raise RuntimeError("network down")
+    monkeypatch.setattr(downloader, "_fetch_image", boom)
+
+    with pytest.raises(RuntimeError):
+        downloader.download_chapter(
+            str(tmp_path), "Test", "Chapter 1", ["http://x/1.jpg"],
+            settings=SETTINGS,
+        )
+
+    assert not (tmp_path / "Chapter_1").exists()
+    assert not (tmp_path / "Test_Chapter_1.pdf").exists()
+
+
 def test_empty_urls_raises(tmp_path):
     with pytest.raises(ValueError):
         downloader.download_chapter(str(tmp_path), "Test", "Chapter 1", [],

@@ -26,7 +26,6 @@ class Settings:
     url_queue_size: int = 10    # chapters buffered between Selenium and downloaders
 
     # ── Scraper ──────────────────────────────────────────────────────────────
-    page_load_wait: float = 3   # seconds to wait for a chapter page to render
     page_timeout: float = 30    # max seconds to wait for a page element
 
     # ── Retry ────────────────────────────────────────────────────────────────

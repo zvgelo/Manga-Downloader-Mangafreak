@@ -202,13 +202,15 @@ main.py           — CLI entry point: prompts + RichDownloadObserver
 ui.py             — rich split-screen UI + RichDownloadObserver
 
 ─ ebook export ─
-to_ebook.py       — orchestration (build_ebooks) and CLI entry point
-epub_builder.py   — image extraction from PDFs and EPUB assembly
-ebook_convert.py  — MOBI conversion via Calibre and PDF merging
-ebook_prompts.py  — interactive prompts for ebook options
-metadata.py       — MangaDex API: author lookup and interactive picker
+to_ebook.py         — orchestration (build_ebooks) and CLI entry point
+epub_builder.py     — image extraction from PDFs and EPUB assembly
+ebook_convert.py    — MOBI conversion via Calibre and PDF merging
+ebook_options.py    — EbookOptions model + shared validation rules (pure)
+ebook_prompts.py    — interactive prompts for ebook options (CLI)
+metadata.py         — MangaDex API client (pure data layer)
+metadata_prompts.py — interactive MangaDex pickers (CLI)
 
-logger.py         — logging configuration
+logger.py           — logging configuration
 ```
 
 ## Architecture
@@ -239,9 +241,12 @@ and the producer/consumer/retry pipeline, accepts a `Settings` and a
 A GUI frontend would construct a `DownloadService`, render the observer events,
 and never touch the download logic.
 
-> Still interactive (CLI-only) for now: the MangaDex metadata/title pickers and
-> the ebook-option prompts (`metadata.py`, `ebook_prompts.py`). Splitting their
-> data lookups from their prompts is the remaining step toward a full GUI.
+The ebook flow follows the same split: pure data and rules live in `metadata.py`
+(`MangaDexClient`) and `ebook_options.py` (`EbookOptions` + validation), while
+the interactive prompts live in `metadata_prompts.py` and `ebook_prompts.py`. A
+GUI can reuse the client, the `EbookOptions` model, and `build_ebooks()` —
+which now takes resolved options and metadata as arguments and never prompts —
+without touching the CLI prompt modules.
 
 ## Logging
 

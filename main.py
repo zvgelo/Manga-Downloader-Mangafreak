@@ -5,9 +5,7 @@ from pathlib import Path
 
 sys.stdout.reconfigure(line_buffering=True)
 
-from config import KINDLE_H, KINDLE_W, SPLIT_THRESHOLD
-from ebook_prompts import (pick_dpi, pick_format, pick_grayscale,
-                           pick_kindle_settings, pick_split)
+from ebook_prompts import prompt_ebook_options
 from metadata_prompts import enrich_chapter_titles, pick_metadata
 from service import DownloadService
 from settings import Settings
@@ -161,20 +159,10 @@ def main():
     # --- ebook ---
     answer = input("\nCreate ebook from downloaded chapters? (y/N) ").strip().lower()
     if answer == 'y':
-        fmt = pick_format()
-        if fmt == 'pdf':
-            dpi, gs = 100, False
-            fk, kw, kh, margin = False, KINDLE_W, KINDLE_H, 0.0
-        else:
-            dpi = pick_dpi(default=100)
-            gs  = pick_grayscale()
-            fk, kw, kh, margin = pick_kindle_settings()
-        meta = pick_metadata(manga_title) if fmt != 'pdf' else None
         total_pdfs = len(list(Path(manga_dir).glob('*.pdf')))
-        split = pick_split(total_pdfs) if total_pdfs > SPLIT_THRESHOLD else None
-        build_ebooks(Path(manga_dir), dpi=dpi, grayscale=gs, fmt=fmt, split=split,
-                     fit_kindle=fk, kindle_w=kw, kindle_h=kh, margin_pct=margin,
-                     metadata=meta)
+        opts = prompt_ebook_options(total_pdfs, default_dpi=100)
+        meta = pick_metadata(manga_title) if opts.fmt != 'pdf' else None
+        build_ebooks(Path(manga_dir), opts, metadata=meta)
         print("\nDone.")
 
 

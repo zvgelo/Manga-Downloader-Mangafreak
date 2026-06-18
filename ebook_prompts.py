@@ -5,6 +5,10 @@ from config import (
     KINDLE_W, KINDLE_H, KINDLE_DEFAULT_MARGIN, KINDLE_PRESETS,
     FORMAT_OPTIONS, SPLIT_THRESHOLD, DPI_PRESETS,
 )
+from ebook_options import (
+    DPI_MAX, DPI_MIN, EbookOptions, clamp_margin, parse_kindle_size,
+    valid_custom_split, valid_dpi,
+)
 
 
 def pick_manga_folder() -> Path:
@@ -57,7 +61,7 @@ def pick_split(total: int) -> int | None:
             n = int(raw)
             if 1 <= n <= len(presets):
                 return presets[n - 1]
-            if 5 <= n <= total:
+            if valid_custom_split(n, total):
                 return n
         print(f"  Enter 1-{len(presets)} or a number between 5 and {total}.")
 
@@ -74,33 +78,24 @@ def pick_dpi(default: int = None) -> int:
     for i, (dpi, label) in enumerate(DPI_PRESETS, 1):
         marker = " *" if dpi == default else ""
         print(f"  {i}. {label}  ({dpi} dpi){marker}")
-    print("  Or enter a custom value (50-300)")
+    print(f"  Or enter a custom value ({DPI_MIN}-{DPI_MAX})")
     while True:
         raw = input("Select quality: ").strip()
         if raw.isdigit():
             n = int(raw)
             if 1 <= n <= len(DPI_PRESETS):
                 return DPI_PRESETS[n - 1][0]
-            if 50 <= n <= 300:
+            if valid_dpi(n):
                 return n
-        print(f"  Enter 1-{len(DPI_PRESETS)} or a number between 50 and 300.")
+        print(f"  Enter 1-{len(DPI_PRESETS)} or a number between {DPI_MIN} and {DPI_MAX}.")
 
 
 def _pick_custom_kindle_size() -> tuple[int, int]:
     while True:
-        raw = input("  Enter width×height in pixels (e.g. 1072x1448): ").strip().lower()
-        for sep in ('x', '×', ','):
-            if sep in raw:
-                parts = raw.split(sep, 1)
-                break
-        else:
-            parts = raw.split()
-        try:
-            w, h = int(parts[0]), int(parts[1])
-            if 200 <= w <= 5000 and 200 <= h <= 5000:
-                return w, h
-        except (ValueError, IndexError):
-            pass
+        raw = input("  Enter width×height in pixels (e.g. 1072x1448): ")
+        size = parse_kindle_size(raw)
+        if size:
+            return size
         print("  Invalid — enter e.g. 1072x1448")
 
 
@@ -132,9 +127,34 @@ def pick_kindle_settings() -> tuple[bool, int, int, float]:
     print(f"  Default: {KINDLE_DEFAULT_MARGIN:.0f}%")
     raw = input(f"  Margin % (Enter for {KINDLE_DEFAULT_MARGIN:.0f}%): ").strip()
     try:
-        margin = float(raw) if raw else KINDLE_DEFAULT_MARGIN
-        margin = max(0.0, min(40.0, margin))
+        margin = clamp_margin(float(raw)) if raw else KINDLE_DEFAULT_MARGIN
     except ValueError:
         margin = KINDLE_DEFAULT_MARGIN
 
     return True, kw, kh, margin
+
+
+def prompt_split_if_large(total_pdfs: int) -> int | None:
+    """Offer volume splitting only when the chapter count is large."""
+    return pick_split(total_pdfs) if total_pdfs > SPLIT_THRESHOLD else None
+
+
+def prompt_ebook_options(total_pdfs: int, default_dpi: int = 150) -> EbookOptions:
+    """
+    Fully-interactive assembly of EbookOptions (format → quality/Kindle → split).
+
+    This is the single place the interactive build rules live, so callers don't
+    re-implement the per-format defaults. Metadata is fetched separately by the
+    caller (it depends on the chosen format).
+    """
+    fmt = pick_format()
+    if fmt == 'pdf':
+        return EbookOptions(fmt=fmt, dpi=default_dpi, grayscale=False,
+                            split=prompt_split_if_large(total_pdfs))
+
+    dpi = pick_dpi(default=default_dpi)
+    gs  = pick_grayscale()
+    fk, kw, kh, margin = pick_kindle_settings()
+    return EbookOptions(fmt=fmt, dpi=dpi, grayscale=gs,
+                        fit_kindle=fk, kindle_w=kw, kindle_h=kh, margin_pct=margin,
+                        split=prompt_split_if_large(total_pdfs))

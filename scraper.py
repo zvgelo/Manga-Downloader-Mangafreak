@@ -1,13 +1,17 @@
+from selenium.common.exceptions import TimeoutException
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
-import time
 
 from logger import get_logger
 from models import Chapter, SearchResult
 from settings import DEFAULT_SETTINGS
 
 log = get_logger(__name__)
+
+# Chapter page images are served from the /mangas path; this selector both
+# scopes URL collection to the real page images and acts as the load signal.
+_CHAPTER_IMG_CSS = "img[src*='mangafreak.me/mangas']"
 
 
 def search_manga(driver, query, settings=DEFAULT_SETTINGS) -> list[SearchResult]:
@@ -69,14 +73,24 @@ def get_chapters(driver, series_url: str, settings=DEFAULT_SETTINGS) -> list[Cha
 
 
 def get_chapter_images(driver, chapter: Chapter, settings=DEFAULT_SETTINGS) -> list[str]:
+    """Return the chapter's image URLs in page order (empty if none rendered)."""
     driver.get(chapter.url)
-    time.sleep(settings.page_load_wait)
+
+    # Wait for the actual page images to render instead of a fixed sleep.
+    try:
+        WebDriverWait(driver, settings.page_timeout).until(
+            lambda d: d.find_elements(By.CSS_SELECTOR, _CHAPTER_IMG_CSS)
+        )
+    except TimeoutException:
+        log.warning("No chapter images rendered for %s within %ss",
+                    chapter.url, settings.page_timeout)
+        return []
 
     seen = set()
     image_urls = []
-    for img in driver.find_elements(By.TAG_NAME, "img"):
+    for img in driver.find_elements(By.CSS_SELECTOR, _CHAPTER_IMG_CSS):
         src = img.get_attribute("src") or ""
-        if "mangafreak.me/mangas" in src and src not in seen:
+        if src and src not in seen:
             seen.add(src)
             image_urls.append(src)
 

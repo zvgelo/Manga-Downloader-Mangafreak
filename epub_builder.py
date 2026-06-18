@@ -1,5 +1,4 @@
 import re
-import sys
 import tempfile
 import uuid
 import zipfile
@@ -214,8 +213,9 @@ def build_epub(manga_dir: Path, dpi: int = 150, grayscale: bool = False,
     if pdfs is None:
         pdfs = sorted(manga_dir.glob('*.pdf'), key=lambda p: natural_sort_key(p.name))
     if not pdfs:
-        print(f"No PDFs found in {manga_dir}")
-        sys.exit(1)
+        # Library-level: raise instead of killing the process so a GUI caller
+        # can handle it. The CLI orchestrator (build_ebooks) guards this first.
+        raise ValueError(f"No PDFs found in {manga_dir}")
 
     mode_label = "grayscale" if grayscale else "color"
     print(f"\nBuilding: {manga_title}")

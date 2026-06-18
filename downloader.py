@@ -165,48 +165,53 @@ def download_chapter(manga_dir, manga_slug, chapter_text, image_urls,
     chapter_dir = os.path.join(manga_dir, f"Chapter_{ch_num}")
     os.makedirs(chapter_dir, exist_ok=True)
 
-    observer.download_started(chapter_text, len(image_urls))
-
-    # Phase 1: download images
-    with ThreadPoolExecutor(max_workers=settings.image_workers) as executor:
-        future_to_idx = {
-            executor.submit(_fetch_image, idx, url, chapter_dir, settings): idx
-            for idx, url in enumerate(image_urls)
-        }
-        results = {}
-        for future in as_completed(future_to_idx):
-            results[future_to_idx[future]] = future.result()
-            observer.image_downloaded(chapter_text)
-    image_paths = [results[i] for i in range(len(image_urls))]
-
-    # Phase 2: build PDF
-    observer.build_started(chapter_text, len(image_paths))
+    # Clean up the scratch dir on any failure (image download or PDF build),
+    # not just the build phase — otherwise a failed fetch leaves it on disk.
     try:
-        pdf = FPDF()
-        pdf_pages = 0
-        for img_path in image_paths:
-            for page_path in split_spread(img_path, grayscale):
-                pdf.add_page()
-                add_image_to_pdf(pdf, page_path, grayscale, settings)
-                pdf_pages += 1
-                if page_path != img_path:
-                    os.unlink(page_path)
-            observer.page_built(chapter_text)
+        observer.download_started(chapter_text, len(image_urls))
 
-        pdf.output(path)
+        # Phase 1: download images
+        with ThreadPoolExecutor(max_workers=settings.image_workers) as executor:
+            future_to_idx = {
+                executor.submit(_fetch_image, idx, url, chapter_dir, settings): idx
+                for idx, url in enumerate(image_urls)
+            }
+            results = {}
+            for future in as_completed(future_to_idx):
+                results[future_to_idx[future]] = future.result()
+                observer.image_downloaded(chapter_text)
+        image_paths = [results[i] for i in range(len(image_urls))]
 
-        # Verify PDF: page count and file integrity
-        with pymupdf.open(path) as _doc:
-            saved_pages = len(_doc)
-        if saved_pages != pdf_pages:
-            raise RuntimeError(
-                f"PDF page mismatch: built {pdf_pages}, saved {saved_pages}")
+        # Phase 2: build PDF
+        observer.build_started(chapter_text, len(image_paths))
+        try:
+            pdf = FPDF()
+            pdf_pages = 0
+            for img_path in image_paths:
+                for page_path in split_spread(img_path, grayscale):
+                    pdf.add_page()
+                    add_image_to_pdf(pdf, page_path, grayscale, settings)
+                    pdf_pages += 1
+                    if page_path != img_path:
+                        os.unlink(page_path)
+                observer.page_built(chapter_text)
+
+            pdf.output(path)
+
+            # Verify PDF: page count and file integrity
+            with pymupdf.open(path) as _doc:
+                saved_pages = len(_doc)
+            if saved_pages != pdf_pages:
+                raise RuntimeError(
+                    f"PDF page mismatch: built {pdf_pages}, saved {saved_pages}")
+        except Exception as e:
+            log.exception("Failed to create PDF for '%s': %s", chapter_text, e)
+            raise
 
         shutil.rmtree(chapter_dir)
         spreads = pdf_pages - len(image_paths)
         observer.chapter_saved(chapter_text, os.path.basename(path), pdf_pages, spreads)
-    except Exception as e:
-        log.exception("Failed to create PDF for '%s': %s", chapter_text, e)
+    except Exception:
         shutil.rmtree(chapter_dir, ignore_errors=True)
         raise
 
